@@ -9,6 +9,6 @@
     "fault": "reconcile_only_net_amount",
     "test": "test_reconciliation_detects_offsetting_errors_and_canonical_reimport",
     "detected": true,
-    "assertion": "assert 0 == 2\n +  where 0 = len([])"
+    "assertion": "assert [] == [{'operation_...nt_mismatch'}]\n  \n  Right contains 2 more items, first extra item: {'operation_id': '662cc715abaa', 'local': -3000, 'channel': -3100, 'reason': 'amount_mismatch'}\n  Use -v to get more diff"
   }
 ]

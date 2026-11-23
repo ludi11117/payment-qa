@@ -12,7 +12,11 @@
   <main class="wrap">
     <section class="heading">
       <div><h1>支付与退款对账</h1><p>控制回调投递顺序，核对订单、资金流水和渠道账单。</p></div>
-      <div class="actions"><button data-action="new">新建订单</button><button class="primary" data-action="demo">运行预设场景 →</button></div>
+      <div class="actions">
+        <button data-action="new">新建订单</button>
+        <button data-action="replay">备用场景 · 乱序重发</button>
+        <button class="primary" data-action="demo">运行主案例 · 净额相同</button>
+      </div>
     </section>
     <p id="message" role="status">正在读取测试订单…</p>
     <section class="summary" aria-label="金额摘要">
@@ -40,7 +44,7 @@
       <textarea id="statement" aria-label="渠道账单内容" rows="4" placeholder="operation_id,delta"></textarea>
       <div id="reconcile-result">
         <p id="totals" class="recon-note">完成回调投递后，导入渠道账单开始对账。</p>
-        <div class="scroll"><table><thead><tr><th>交易 ID</th><th>账差类型</th><th>本地流水</th><th>渠道账单</th><th>差额</th></tr></thead><tbody id="differences"></tbody></table></div>
+        <div class="scroll"><table><thead><tr><th>交易 ID</th><th>账差类型</th><th>本地流水</th><th>渠道账单</th><th>差额（渠道 − 本地）</th></tr></thead><tbody id="differences"></tbody></table></div>
       </div>
     </section>
   </main>

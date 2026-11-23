@@ -1,5 +1,6 @@
 const select = (selector) => document.querySelector(selector);
-const currency = (cents) => cents == null ? "—" : "¥" + (cents / 100).toFixed(2);
+const currency = (cents) => cents == null ? "—" : (cents < 0 ? "−" : "") + "¥" + (Math.abs(cents) / 100).toFixed(2);
+const signedCurrency = (cents) => (cents > 0 ? "+" : "") + currency(cents);
 const labels = {
   pending: "待回调", paid: "已支付", refunded: "已全额退款", partially_refunded: "部分退款",
   succeeded: "成功", failed: "失败", applied: "已入账", duplicate_event: "重复事件",
@@ -124,10 +125,11 @@ function sample() {
 async function reconcile() {
   const source = select("#statement").value;
   const r = await api("/api/orders/" + orderId + "/statements", "POST", source, {"Content-Type": "text/csv"});
+  const totalsMatch = r.order_net === r.ledger_net && r.ledger_net === r.channel_net;
   select("#totals").textContent = [
     "订单净额 " + currency(r.order_net), "本地流水 " + currency(r.ledger_net),
     "渠道净额 " + currency(r.channel_net), r.differences.length + " 笔差异",
-    r.projection_mismatch ? "订单与流水不平" : "订单与流水一致",
+    totalsMatch ? "三方净额一致" : r.projection_mismatch ? "订单与流水不平" : "渠道与本地净额不一致",
     r.duplicate ? "重复导入" : "账单已导入"
   ].join(" · ");
   rows("#differences", r.differences.map(d => [
@@ -145,11 +147,23 @@ async function reconcile() {
       select("details").scrollIntoView({block: "nearest"});
     }),
     label(d.reason), currency(d.local), currency(d.channel),
-    d.local == null || d.channel == null ? "—" : currency(d.channel - d.local)
+    d.local == null || d.channel == null ? "—" : signedCurrency(d.channel - d.local)
   ]));
 }
 
 async function demo() {
+  await newOrder();
+  const payment = state.operations[0];
+  await deliver(payment, "succeeded");
+  const partialRefund = await refund(3000);
+  await deliver(partialRefund, "succeeded");
+  // Fixed channel amounts are independent of the order projection and ledger.
+  select("#statement").value = ["operation_id,delta", payment.id + ",10100", partialRefund.id + ",-3100"].join("\n");
+  await reconcile();
+  note("主案例完成。点击两条差异的交易 ID 查看回调与流水。");
+}
+
+async function replay() {
   await newOrder();
   await deliver(state.operations[0], "succeeded");
   const first = await refund(3000);
@@ -159,7 +173,7 @@ async function demo() {
   await deliver(first, "succeeded");
   sample();
   await reconcile();
-  note("预设场景完成。点击差异行的交易 ID 查看回调和流水。");
+  note("乱序重发场景完成。点击差异行的交易 ID 查看回调和流水。");
 }
 
 let busy = false;
@@ -175,7 +189,7 @@ async function run(action) {
   }
 }
 
-const actions = {new: newOrder, demo, sample, reconcile};
+const actions = {new: newOrder, demo, replay, sample, reconcile};
 for (const button of document.querySelectorAll("[data-action]")) {
   button.onclick = () => run(actions[button.dataset.action]);
 }
@@ -196,5 +210,5 @@ select("#refund-form").onsubmit = (event) => {
 run(async () => {
   if (orderId) await refresh();
   else await newOrder();
-  note("可手动投递回调，或运行预设场景。");
+  note("运行主案例，检查净额相同时能否检出逐笔差异。");
 });

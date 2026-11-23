@@ -30,8 +30,9 @@ def evaluate(folder, source, test_name):
         return None
     assert result.returncode == 1 and failure is not None, result.stdout
     message = failure.get("message", "")
-    assert message.startswith("assert "), message
-    return message
+    assertion = message.removeprefix("AssertionError: ")
+    assert assertion.startswith("assert "), message
+    return assertion
 
 
 def main():
@@ -48,7 +49,9 @@ def main():
                 diagnosis = evaluate(folder, version, test)
                 if variant == "baseline":
                     assert diagnosis is None, diagnosis
+                    print(f"{name}: baseline PASS")
                 else:
+                    print(f"{name}: changed {'FAIL (detected)' if diagnosis else 'PASS (missed)'}")
                     report.append({"fault": name, "test": test, "detected": diagnosis is not None,
                                    "assertion": diagnosis})
     (ROOT / "reports").mkdir(exist_ok=True)

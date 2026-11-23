@@ -126,8 +126,12 @@ def test_reconciliation_detects_offsetting_errors_and_canonical_reimport(base_ur
 
     result = submit(lines).json()
     assert result["order_net"] == result["ledger_net"] == result["channel_net"] == 7000
-    assert len(result["differences"]) == 2
-    assert {d["operation_id"] for d in result["differences"]} == {payment["id"], op["id"]}
+    expected = [
+        {"operation_id": payment["id"], "local": 10000, "channel": 10100, "reason": "amount_mismatch"},
+        {"operation_id": op["id"], "local": -3000, "channel": -3100, "reason": "amount_mismatch"},
+    ]
+    assert result["differences"] == sorted(expected, key=lambda row: row["operation_id"])
+    assert result["duplicate"] is False and result["projection_mismatch"] is False
     reordered = submit(lines[::-1]).json()
     assert reordered["duplicate"] and reordered["statement"] == result["statement"]
     assert reordered["differences"] == result["differences"]
