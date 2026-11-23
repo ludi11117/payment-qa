@@ -1,0 +1,261 @@
+{
+  "info": {
+    "name": "Trace Ledger | Payment and reconciliation acceptance",
+    "description": "A fresh order is created for every run. Channel amounts are fixed in the fixture, and operation IDs are taken from the live API.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:5051"
+    }
+  ],
+  "item": [
+    {
+      "name": "Create order",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{base_url}}/api/orders"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", function () { pm.response.to.have.status(201); });",
+              "const bodyJson = pm.response.json();",
+              "pm.test(\"Order starts unpaid and contains one payment\", function () { pm.expect(bodyJson.order.paid).to.eql(0); pm.expect(bodyJson.operations.length).to.eql(1); pm.expect(bodyJson.operations[0].kind).to.eql('payment'); });",
+              "pm.collectionVariables.set('order_id', bodyJson.order.id);",
+              "pm.collectionVariables.set('payment_id', bodyJson.operations[0].id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Settle payment",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"event_id\":\"evt-postman-payment\",\"operation_id\":\"{{payment_id}}\",\"outcome\":\"succeeded\",\"amount\":10000}"
+        },
+        "url": "{{base_url}}/api/orders/{{order_id}}/callbacks"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "const bodyJson = pm.response.json();",
+              "pm.test(\"Payment event applied\", function () { pm.expect(bodyJson).to.eql({decision: 'applied'}); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Request 30 yuan refund",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "postman-refund"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"amount\":3000}"
+        },
+        "url": "{{base_url}}/api/orders/{{order_id}}/refunds"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", function () { pm.response.to.have.status(201); });",
+              "const bodyJson = pm.response.json();",
+              "pm.test(\"Refund reserves exactly 3000 cents\", function () { pm.expect(bodyJson).to.include({kind: 'refund', state: 'pending', amount: 3000}); });",
+              "pm.collectionVariables.set('refund_id', bodyJson.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Settle refund",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"event_id\":\"evt-postman-refund\",\"operation_id\":\"{{refund_id}}\",\"outcome\":\"succeeded\",\"amount\":3000}"
+        },
+        "url": "{{base_url}}/api/orders/{{order_id}}/callbacks"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "const bodyJson = pm.response.json();",
+              "pm.test(\"Refund event applied\", function () { pm.expect(bodyJson).to.eql({decision: 'applied'}); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Replay refund callback",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"event_id\":\"evt-postman-refund\",\"operation_id\":\"{{refund_id}}\",\"outcome\":\"succeeded\",\"amount\":3000}"
+        },
+        "url": "{{base_url}}/api/orders/{{order_id}}/callbacks"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "const bodyJson = pm.response.json();",
+              "pm.test(\"Replay is a duplicate event\", function () { pm.expect(bodyJson).to.eql({decision: 'duplicate_event'}); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Import equal-net statement",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "text/csv"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "operation_id,delta\n{{payment_id}},10100\n{{refund_id}},-3100"
+        },
+        "url": "{{base_url}}/api/orders/{{order_id}}/statements"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "const bodyJson = pm.response.json();",
+              "pm.test(\"Reconciliation response shape\", function () { pm.response.to.have.jsonSchema({type: 'object', required: ['order_net','ledger_net','channel_net','differences','projection_differences','duplicate'], properties: {order_net: {type: 'integer'}, ledger_net: {type: 'integer'}, channel_net: {type: 'integer'}, differences: {type: 'array'}, projection_differences: {type: 'array'}, duplicate: {type: 'boolean'}}}); });",
+              "pm.test(\"All three net amounts equal 7000 cents\", function () { pm.expect([bodyJson.order_net, bodyJson.ledger_net, bodyJson.channel_net]).to.eql([7000, 7000, 7000]); });",
+              "pm.test(\"Exactly two discrepancies with correct IDs and signed amounts\", function () { pm.expect(bodyJson.differences).to.have.deep.members([{operation_id: pm.collectionVariables.get('payment_id'), local: 10000, channel: 10100, reason: 'amount_mismatch'}, {operation_id: pm.collectionVariables.get('refund_id'), local: -3000, channel: -3100, reason: 'amount_mismatch'}]); });",
+              "pm.test(\"New statement has no order-to-ledger drift\", function () { pm.expect(bodyJson.duplicate).to.eql(false); pm.expect(bodyJson.projection_differences).to.eql([]); });",
+              "pm.collectionVariables.set('statement_id', bodyJson.statement);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reimport same rows in reverse order",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "text/csv"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "operation_id,delta\n{{refund_id}},-3100\n{{payment_id}},10100"
+        },
+        "url": "{{base_url}}/api/orders/{{order_id}}/statements"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "const bodyJson = pm.response.json();",
+              "pm.test(\"Same statement ID and same discrepancy count\", function () { pm.expect(bodyJson.statement).to.eql(pm.collectionVariables.get('statement_id')); pm.expect(bodyJson.duplicate).to.eql(true); pm.expect(bodyJson.differences.length).to.eql(2); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reject refund one cent over available amount",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "postman-over-limit"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"amount\":7001}"
+        },
+        "url": "{{base_url}}/api/orders/{{order_id}}/refunds"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 409\", function () { pm.response.to.have.status(409); });",
+              "const bodyJson = pm.response.json();",
+              "pm.test(\"Rejection is a refund limit error\", function () { pm.expect(bodyJson).to.eql({error: 'refund_limit'}); });"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

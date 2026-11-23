@@ -44,6 +44,7 @@
       <textarea id="statement" aria-label="渠道账单内容" rows="4" placeholder="operation_id,delta"></textarea>
       <div id="reconcile-result">
         <p id="totals" class="recon-note">完成回调投递后，导入渠道账单开始对账。</p>
+        <p id="projection-differences" class="diff" hidden></p>
         <div class="scroll"><table><thead><tr><th>交易 ID</th><th>账差类型</th><th>本地流水</th><th>渠道账单</th><th>差额（渠道 − 本地）</th></tr></thead><tbody id="differences"></tbody></table></div>
       </div>
     </section>

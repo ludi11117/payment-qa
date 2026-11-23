@@ -1,4 +1,6 @@
 import json
+import sqlite3
+from contextlib import closing
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -71,7 +73,7 @@ def test_equal_totals_show_both_signed_differences(base_url):
             page.get_by_role("button", name="运行主案例").click()
             expect(page.get_by_role("status")).to_contain_text("主案例完成")
             expect(page.locator("#totals")).to_have_text(
-                "订单净额 ¥70.00 · 本地流水 ¥70.00 · 渠道净额 ¥70.00 · 2 笔差异 · 三方净额一致 · 账单已导入"
+                "订单净额 ¥70.00 · 本地流水 ¥70.00 · 渠道净额 ¥70.00 · 渠道逐笔 2 笔差异 · 三方净额一致 · 账单已导入"
             )
             expect(page.locator("#differences tr")).to_have_count(2)
             payment = page.locator("#differences tr").filter(has_text="+¥1.00")
@@ -108,3 +110,30 @@ def test_equal_totals_show_both_signed_differences(base_url):
         assert {d["operation_id"]: d["channel"] - d["local"] for d in result["differences"]} == {
             payment_id: 100, refund_id: -100,
         }
+
+
+def test_reconciliation_shows_order_drift_even_when_net_matches(base_url, db_path):
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(channel="msedge")
+        try:
+            page = browser.new_page()
+            page.goto(base_url)
+            expect(page.get_by_role("status")).to_contain_text("运行主案例")
+            page.get_by_role("button", name="运行主案例").click()
+            expect(page.get_by_role("status")).to_contain_text("主案例完成")
+            drift = page.locator("#projection-differences")
+            expect(drift).to_be_hidden()
+            statement = page.locator("#statement")
+            statement.fill(statement.input_value().replace(",10100", ",10000").replace(",-3100", ",-3000"))
+            with closing(sqlite3.connect(db_path)) as db, db:
+                db.execute("UPDATE orders SET paid = 9900, refunded = 2900 WHERE refunded = 3000")
+            page.get_by_role("button", name="导入并对账").click()
+            expect(page.locator("#totals")).to_contain_text("渠道逐笔 0 笔差异 · 三方净额一致")
+            expect(page.locator("#paid")).to_have_text("¥99.00")
+            expect(page.locator("#refunded")).to_have_text("¥29.00")
+            expect(drift).to_have_text(
+                "实付不一致（订单 ¥99.00，资金流水 ¥100.00） · 已退款不一致（订单 ¥29.00，资金流水 ¥30.00）"
+            )
+            page.screenshot(path="reports/order-drift.png", full_page=True)
+        finally:
+            browser.close()

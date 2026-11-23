@@ -9,6 +9,12 @@
     "fault": "reconcile_only_net_amount",
     "test": "test_reconciliation_detects_offsetting_errors_and_canonical_reimport",
     "detected": true,
-    "assertion": "assert [] == [{'operation_...nt_mismatch'}]\n  \n  Right contains 2 more items, first extra item: {'operation_id': '662cc715abaa', 'local': -3000, 'channel': -3100, 'reason': 'amount_mismatch'}\n  Use -v to get more diff"
+    "assertion": "assert [] == [{'operation_...nt_mismatch'}]\n  \n  Right contains 2 more items, first extra item: {'operation_id': '0d851a0aa946', 'local': -3000, 'channel': -3100, 'reason': 'amount_mismatch'}\n  Use -v to get more diff"
+  },
+  {
+    "fault": "ignore_order_drift_when_net_matches",
+    "test": "test_order_paid_and_refunded_drift_cancel_out_in_net",
+    "detected": true,
+    "assertion": "assert False is True"
   }
 ]

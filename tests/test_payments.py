@@ -1,6 +1,7 @@
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
+from itertools import product
 from threading import Barrier
 
 import pytest
@@ -97,6 +98,62 @@ def test_failed_refund_releases_hold_and_replay_does_not_allocate(base_url):
     assert len(state["ledger"]) == 2
 
 
+@pytest.mark.parametrize("reverse,outcomes", list(product(
+    [False, True], list(product(["succeeded", "failed"], repeat=2))
+)))
+def test_refund_transitions_preserve_amounts(base_url, reverse, outcomes):
+    url, payment = paid_order(base_url)
+    refund_amounts = (3000, 4000)
+    operations = []
+    reserved = {}
+    settled = {}
+
+    def check_balances():
+        snapshot = requests.get(url, timeout=5).json()
+        order = snapshot["order"]
+        pending = sum(reserved.values())
+        refunded = sum(settled.values())
+        assert (order["paid"], order["refunded"], order["pending"], order["available"]) == (
+            10000, refunded, pending, 10000 - refunded - pending,
+        )
+        assert {row["operation_id"]: row["delta"] for row in snapshot["ledger"]} == {
+            payment["id"]: 10000, **{key: -value for key, value in settled.items()},
+        }
+        return order["available"]
+
+    for i, amount in enumerate(refund_amounts):
+        response = refund(url, f"request-{i}", amount)
+        assert response.status_code == 201
+        operation = response.json()
+        operations.append(operation)
+        reserved[operation["id"]] = amount
+        check_balances()
+
+    schedule = list(zip(operations, outcomes))
+    if reverse:
+        schedule.reverse()
+    for operation, outcome in schedule:
+        operation_id = operation["id"]
+        first = event(url, operation, operation_id, outcome)
+        assert first.json() == {"decision": "applied"}
+        amount = reserved.pop(operation_id)
+        if outcome == "succeeded":
+            settled[operation_id] = amount
+        available = check_balances()
+        assert event(url, operation, operation_id, outcome).json() == {"decision": "duplicate_event"}
+        assert event(url, operation, operation_id + "-copy", outcome).json() == {"decision": "duplicate_operation"}
+        assert check_balances() == available
+        if available < 10000:
+            rejected = refund(url, "one-cent-over", available + 1)
+            assert rejected.status_code == 409 and rejected.json() == {"error": "refund_limit"}
+            assert check_balances() == available
+
+    boundary = refund(url, "exactly-remaining", available)
+    assert boundary.status_code == 201
+    reserved[boundary.json()["id"]] = available
+    assert check_balances() == 0
+
+
 def test_callbacks_racing_on_same_transaction(base_url):
     url, _ = paid_order(base_url)
     op = refund(url, "refund", 100).json()
@@ -149,6 +206,55 @@ def test_statement_missing_on_each_side(base_url):
     assert {d["operation_id"]: d["reason"] for d in result["differences"]} == {
         payment["id"]: "missing_channel", "channel-only": "missing_local",
     }
+
+
+def test_order_paid_and_refunded_drift_cancel_out_in_net(base_url, db_path):
+    url, payment = paid_order(base_url)
+    partial = refund(url, "partial", 3000).json()
+    assert event(url, partial, "refund-completed").json() == {"decision": "applied"}
+    statement = f'operation_id,delta\n{payment["id"]},10000\n{partial["id"]},-3000'
+    with closing(sqlite3.connect(db_path)) as db, db:
+        db.execute("UPDATE orders SET paid = 9900, refunded = 2900 WHERE id = ?", (payment["order_id"],))
+
+    response = requests.post(url + "/statements", data=statement, timeout=5)
+    assert response.status_code == 200
+    result = response.json()
+    assert result["order_net"] == result["ledger_net"] == result["channel_net"] == 7000
+    assert result["differences"] == []
+    assert result["projection_mismatch"] is True
+    assert result["projection_differences"] == [
+        {"field": "paid", "order": 9900, "ledger": 10000},
+        {"field": "refunded", "order": 2900, "ledger": 3000},
+    ]
+
+
+def test_rejected_writes_do_not_cross_order_boundaries(base_url):
+    first_url, payment = paid_order(base_url)
+    second_url, _ = new_order(base_url)
+    missing = base_url + "/api/orders/unknown"
+    assert requests.get(missing, timeout=5).json() == {"error": "unknown_order"}
+    assert refund(missing, "unknown", 100).status_code == 404
+    statement = f'operation_id,delta\n{payment["id"]},10000'
+    assert requests.post(missing + "/statements", data=statement, timeout=5).status_code == 404
+    wrong_order = event(second_url, payment, "cross-order")
+    assert wrong_order.status_code == 404 and wrong_order.json() == {"error": "unknown_operation"}
+    first = requests.get(first_url, timeout=5).json()
+    second = requests.get(second_url, timeout=5).json()
+    assert first["order"]["paid"] == 10000 and len(first["events"]) == 1
+    assert second["order"]["paid"] == 0 and second["events"] == second["ledger"] == []
+
+
+def test_invalid_money_payloads_do_not_write_state(base_url, db_path):
+    url, payment = new_order(base_url)
+    assert refund(url, "boolean-amount", True).json() == {"error": "invalid_refund"}
+    assert event(url, payment, "", amount=True).json() == {"error": "invalid_event"}
+    for csv in ("wrong,header\n", "operation_id,delta\nplaceholder,0"):
+        response = requests.post(url + "/statements", data=csv, timeout=5)
+        assert response.status_code == 400 and response.json() == {"error": "invalid_statement"}
+    state = requests.get(url, timeout=5).json()
+    assert len(state["operations"]) == 1 and state["events"] == state["ledger"] == []
+    with closing(sqlite3.connect(db_path)) as db:
+        assert db.execute("SELECT COUNT(*) FROM statements").fetchone()[0] == 0
 
 
 def test_database_write_failure_rolls_back_callback_and_allows_retry(base_url, db_path):

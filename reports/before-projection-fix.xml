@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.350" timestamp="2026-11-23T11:53:42.583104+08:00"><testcase classname="tests.test_payments" name="test_order_paid_and_refunded_drift_cancel_out_in_net" time="0.085"><failure message="assert False is True">tests\test_payments.py:167: in test_order_paid_and_refunded_drift_cancel_out_in_net
+    assert result["projection_mismatch"] is True
+E   assert False is True</failure></testcase></testsuite></testsuites>

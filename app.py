@@ -155,11 +155,18 @@ def create_app(db_path=None):
                       "reason": ("missing_local" if ref not in book else
                                  "missing_channel" if ref not in rows else "amount_mismatch")}
                      for ref in sorted(book.keys() | rows.keys()) if book.get(ref) != rows.get(ref)]
-            ledger_net = sum(book.values())
+            ledger_paid = sum(delta for delta in book.values() if delta > 0)
+            ledger_refunded = -sum(delta for delta in book.values() if delta < 0)
+            projection_differences = [
+                {"field": field, "order": current[field], "ledger": amount}
+                for field, amount in (("paid", ledger_paid), ("refunded", ledger_refunded))
+                if current[field] != amount
+            ]
             order_net = current["paid"] - current["refunded"]
             return {"statement": digest[:12], "duplicate": not saved, "differences": by_id,
-                    "order_net": order_net, "ledger_net": ledger_net, "channel_net": sum(rows.values()),
-                    "projection_mismatch": order_net != ledger_net}
+                    "order_net": order_net, "ledger_net": ledger_paid - ledger_refunded,
+                    "channel_net": sum(rows.values()), "projection_mismatch": bool(projection_differences),
+                    "projection_differences": projection_differences}
 
     return app
 

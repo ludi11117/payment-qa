@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="Trace Ledger | Payment and reconciliation acceptance" tests="8" time="0.070">
+  <testsuite name="Create order" id="d45148fd-8c2e-498c-b8f2-089a26734f22" timestamp="2026-11-23T03:57:56.759Z" tests="2" failures="0" errors="0" time="0.022">
+    <testcase name="HTTP 201" time="0.022" classname="CreateOrder"/>
+    <testcase name="Order starts unpaid and contains one payment" time="0.022" classname="CreateOrder"/>
+  </testsuite>
+  <testsuite name="Settle payment" id="1d9db086-69cb-4e96-9bd2-3ef2882d5e0a" timestamp="2026-11-23T03:57:56.759Z" tests="2" failures="0" errors="0" time="0.009">
+    <testcase name="HTTP 200" time="0.009" classname="SettlePayment"/>
+    <testcase name="Payment event applied" time="0.009" classname="SettlePayment"/>
+  </testsuite>
+  <testsuite name="Request 30 yuan refund" id="b0cdb48e-d7bb-4857-9def-fcf814a767f2" timestamp="2026-11-23T03:57:56.759Z" tests="2" failures="0" errors="0" time="0.008">
+    <testcase name="HTTP 201" time="0.008" classname="Request30YuanRefund"/>
+    <testcase name="Refund reserves exactly 3000 cents" time="0.008" classname="Request30YuanRefund"/>
+  </testsuite>
+  <testsuite name="Settle refund" id="296d33f0-4555-4c15-ac6e-f277658a7f54" timestamp="2026-11-23T03:57:56.759Z" tests="2" failures="0" errors="0" time="0.008">
+    <testcase name="HTTP 200" time="0.008" classname="SettleRefund"/>
+    <testcase name="Refund event applied" time="0.008" classname="SettleRefund"/>
+  </testsuite>
+  <testsuite name="Replay refund callback" id="9e6a8ded-fc99-471f-9354-7c2985de9883" timestamp="2026-11-23T03:57:56.759Z" tests="2" failures="0" errors="0" time="0.005">
+    <testcase name="HTTP 200" time="0.005" classname="ReplayRefundCallback"/>
+    <testcase name="Replay is a duplicate event" time="0.005" classname="ReplayRefundCallback"/>
+  </testsuite>
+  <testsuite name="Import equal-net statement" id="70f8d073-c93a-45ac-838f-63ddc9f6cac7" timestamp="2026-11-23T03:57:56.759Z" tests="5" failures="0" errors="0" time="0.007">
+    <testcase name="HTTP 200" time="0.007" classname="ImportEqualNetStatement"/>
+    <testcase name="Reconciliation response shape" time="0.007" classname="ImportEqualNetStatement"/>
+    <testcase name="All three net amounts equal 7000 cents" time="0.007" classname="ImportEqualNetStatement"/>
+    <testcase name="Exactly two discrepancies with correct IDs and signed amounts" time="0.007" classname="ImportEqualNetStatement"/>
+    <testcase name="New statement has no order-to-ledger drift" time="0.007" classname="ImportEqualNetStatement"/>
+  </testsuite>
+  <testsuite name="Reimport same rows in reverse order" id="274d03af-2e94-4aa2-b8e1-ad41f0d304c1" timestamp="2026-11-23T03:57:56.759Z" tests="2" failures="0" errors="0" time="0.005">
+    <testcase name="HTTP 200" time="0.005" classname="ReimportSameRowsInReverseOrder"/>
+    <testcase name="Same statement ID and same discrepancy count" time="0.005" classname="ReimportSameRowsInReverseOrder"/>
+  </testsuite>
+  <testsuite name="Reject refund one cent over available amount" id="d436a15e-29a7-443d-b799-cfa154e41570" timestamp="2026-11-23T03:57:56.759Z" tests="2" failures="0" errors="0" time="0.006">
+    <testcase name="HTTP 409" time="0.006" classname="RejectRefundOneCentOverAvailableAmount"/>
+    <testcase name="Rejection is a refund limit error" time="0.006" classname="RejectRefundOneCentOverAvailableAmount"/>
+  </testsuite>
+</testsuites>

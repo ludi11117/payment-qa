@@ -14,6 +14,9 @@ FAULTS = [
     ("reconcile_only_net_amount", "if book.get(ref) != rows.get(ref)",
      "if book.get(ref) != rows.get(ref) and sum(book.values()) != sum(rows.values())",
      "test_reconciliation_detects_offsetting_errors_and_canonical_reimport"),
+    ("ignore_order_drift_when_net_matches", "if current[field] != amount",
+     'if current[field] != amount and current["paid"] - current["refunded"] != ledger_paid - ledger_refunded',
+     "test_order_paid_and_refunded_drift_cancel_out_in_net"),
 ]
 
 

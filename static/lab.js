@@ -84,6 +84,7 @@ async function newOrder() {
   select("#requests").replaceChildren();
   select("#statement").value = "";
   select("#totals").textContent = "完成回调投递后，导入渠道账单开始对账。";
+  select("#projection-differences").hidden = true;
   rows("#differences", []);
   state = await api("/api/orders", "POST");
   orderId = state.order.id;
@@ -124,14 +125,21 @@ function sample() {
 
 async function reconcile() {
   const source = select("#statement").value;
+  await refresh();
   const r = await api("/api/orders/" + orderId + "/statements", "POST", source, {"Content-Type": "text/csv"});
   const totalsMatch = r.order_net === r.ledger_net && r.ledger_net === r.channel_net;
   select("#totals").textContent = [
     "订单净额 " + currency(r.order_net), "本地流水 " + currency(r.ledger_net),
-    "渠道净额 " + currency(r.channel_net), r.differences.length + " 笔差异",
-    totalsMatch ? "三方净额一致" : r.projection_mismatch ? "订单与流水不平" : "渠道与本地净额不一致",
+    "渠道净额 " + currency(r.channel_net), "渠道逐笔 " + r.differences.length + " 笔差异",
+    totalsMatch ? "三方净额一致" : "三方净额不一致",
     r.duplicate ? "重复导入" : "账单已导入"
   ].join(" · ");
+  const projection = select("#projection-differences");
+  projection.hidden = !r.projection_mismatch;
+  const fields = {paid: "实付", refunded: "已退款"};
+  projection.textContent = r.projection_differences.map(d =>
+    fields[d.field] + "不一致（订单 " + currency(d.order) + "，资金流水 " + currency(d.ledger) + "）"
+  ).join(" · ");
   rows("#differences", r.differences.map(d => [
     actionButton(d.operation_id, () => {
       select("details").open = true;
