@@ -1,0 +1,14 @@
+[
+  {
+    "fault": "pending_refunds_ignore_reservations",
+    "test": "test_parallel_refunds_reserve_capacity",
+    "detected": true,
+    "assertion": "assert [201, 201] == [201, 409]\n  \n  At index 1 diff: 201 != 409\n  Use -v to get more diff"
+  },
+  {
+    "fault": "reconcile_only_net_amount",
+    "test": "test_reconciliation_detects_offsetting_errors_and_canonical_reimport",
+    "detected": true,
+    "assertion": "assert 0 == 2\n +  where 0 = len([])"
+  }
+]

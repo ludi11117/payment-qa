@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trace Ledger · 支付对账测试台</title>
+  <link rel="stylesheet" href="/static/lab.css">
+  <script defer src="/static/lab.js"></script>
+</head>
+<body>
+  <header><div class="wrap brand"><span class="mark">⇄</span><strong>Trace Ledger</strong><span class="mode">本地模拟渠道</span></div></header>
+  <main class="wrap">
+    <section class="heading">
+      <div><h1>支付与退款对账</h1><p>控制回调投递顺序，核对订单、资金流水和渠道账单。</p></div>
+      <div class="actions"><button data-action="new">新建订单</button><button class="primary" data-action="demo">运行预设场景 →</button></div>
+    </section>
+    <p id="message" role="status">正在读取测试订单…</p>
+    <section class="summary" aria-label="金额摘要">
+      <div><span>订单金额</span><strong>¥100.00</strong></div>
+      <div><span>实付金额</span><strong id="paid">—</strong></div>
+      <div><span>已退款</span><strong id="refunded">—</strong></div>
+      <div><span>可申请退款</span><strong id="available">—</strong></div>
+    </section>
+    <div class="columns">
+      <section class="panel timeline">
+        <div class="panel-head"><div><h2>交易时间线</h2><p id="order-id" class="mono">—</p></div><span id="order-state" class="pill">—</span></div>
+        <div class="scroll"><table><thead><tr><th>操作</th><th>金额</th><th>状态</th><th>回调</th></tr></thead><tbody id="operations"></tbody></table></div>
+        <form id="refund-form"><label>退款金额（元） <input id="refund-input" value="30.00" inputmode="decimal" required></label><button>申请退款</button></form>
+      </section>
+      <section class="panel simulator">
+        <div class="panel-head"><div><h2>回调模拟器</h2><p>按需投递，保留回调 ID 以复现重复通知。</p></div></div>
+        <div class="scroll"><table><thead><tr><th>回调 ID</th><th>交易 ID</th><th>处理结果</th></tr></thead><tbody id="events"></tbody></table></div>
+        <details><summary>查看 HTTP 请求与响应</summary><div id="requests"></div><pre id="payload">选择一条请求查看详情</pre></details>
+      </section>
+    </div>
+    <section class="panel reconciliation">
+      <div class="panel-head"><div><h2>三方对账</h2><p>按交易 ID 对照本地记账与渠道金额。</p></div>
+      <div class="actions"><button data-action="sample">载入 1 元差异样例</button><button class="primary" data-action="reconcile">导入并对账</button></div></div>
+      <label class="upload">渠道账单 CSV <input id="file" type="file" accept=".csv,text/csv"></label>
+      <textarea id="statement" aria-label="渠道账单内容" rows="4" placeholder="operation_id,delta"></textarea>
+      <div id="reconcile-result">
+        <p id="totals" class="recon-note">完成回调投递后，导入渠道账单开始对账。</p>
+        <div class="scroll"><table><thead><tr><th>交易 ID</th><th>账差类型</th><th>本地流水</th><th>渠道账单</th><th>差额</th></tr></thead><tbody id="differences"></tbody></table></div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
